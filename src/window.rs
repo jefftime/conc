@@ -1,56 +1,63 @@
-use glfw::{Context, Glfw};
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use sdl2::{event::Event, video::Window as SdlWindow, EventPump, Sdl};
+
+mod input;
 
 pub struct Window {
-    pub glfw: Glfw,
+    pub window: SdlWindow,
+    pub event_pump: EventPump,
     pub should_close: bool,
-    window: glfw::Window,
-    event_receiver: std::sync::mpsc::Receiver<(f64, glfw::WindowEvent)>,
-    width: u32,
-    height: u32,
+    pub did_resize: bool,
+    pub width: i32,
+    pub height: i32,
+}
+
+unsafe impl HasRawWindowHandle for Window {
+    fn raw_window_handle(&self) -> RawWindowHandle {
+        self.window.raw_window_handle()
+    }
 }
 
 impl Window {
-    pub fn new(
-        title: &str,
-        width: u32,
-        height: u32,
-    ) -> Result<Window, glfw::InitError> {
-        let glfw = glfw::init(glfw::FAIL_ON_ERRORS)?;
+    pub fn new(sdl: Sdl, title: &str, width: u32, height: u32) -> Window {
+        let sdl_video = sdl
+            .video()
+            .expect("Failed to initialize SDL2 video subsystem");
+        let event_pump = sdl.event_pump().expect("Failed to obtain event pump");
 
-        let (mut window, events) = glfw
-            .create_window(width, height, title, glfw::WindowMode::Windowed)
-            .expect("Failed to create GLFW window");
+        let window = sdl_video
+            .window(title, width, height)
+            .opengl()
+            .resizable()
+            .build()
+            .expect("Failed to create SDL window");
 
-        window.set_key_polling(true);
-        window.make_current();
-
-        Ok(Window {
-            glfw: glfw,
+        Window {
             window: window,
-            event_receiver: events,
-            width: width,
-            height: height,
+            event_pump: event_pump,
             should_close: false,
-        })
+            did_resize: false,
+            width: width as i32,
+            height: height as i32,
+        }
     }
 
     pub fn update(&mut self) {
-        self.glfw.poll_events();
-        let receiver = &self.event_receiver;
-        for (_, event) in glfw::flush_messages(&receiver) {
-            self.should_close = handle_window_event(event);
-        }
-    }
-}
+        self.did_resize = false;
 
-fn handle_window_event(event: glfw::WindowEvent) -> bool {
-    match event {
-        glfw::WindowEvent::Key(
-            glfw::Key::Escape,
-            _,
-            glfw::Action::Press,
-            _,
-        ) => true,
-        _ => false,
+        for event in self.event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. } => self.should_close = true,
+                Event::Window { win_event, .. } => match win_event {
+                    sdl2::event::WindowEvent::Resized(width, height) => {
+                        self.width = width;
+                        self.height = height;
+                        self.did_resize = true;
+                    }
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
     }
 }

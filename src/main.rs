@@ -1,20 +1,31 @@
-extern crate bincode;
-extern crate glfw;
-extern crate serde;
-extern crate serde_json;
-
+mod render;
 mod window;
 
+use render::{PresentMode, Render};
 use window::Window;
 
-fn main() {
-    let mut window = Window::new("Conc", 640, 480).unwrap();
+async fn run(mut window: Window) {
+    let mut render = Render::new(&window, PresentMode::Fifo).await;
 
-    'main: loop {
-        if window.should_close {
-            break 'main;
+    loop {
+        window.update();
+        if window.did_resize {
+            render
+                .reconfigure(window.width, window.height, PresentMode::Fifo)
+                .await;
         }
 
-        window.update();
+        render.draw();
+
+        if window.should_close {
+            break;
+        }
     }
+}
+
+fn main() {
+    let sdl = sdl2::init().expect("Failed to initialize SDL");
+    let window = Window::new(sdl, "Conc", 640, 480);
+
+    pollster::block_on(run(window));
 }
