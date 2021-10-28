@@ -8,18 +8,16 @@ async fn run(mut window: Window) {
     let mut render = Render::new(&window, PresentMode::Fifo).await;
 
     loop {
-        window.update();
-        if window.did_resize {
-            render
-                .reconfigure(window.width, window.height, PresentMode::Fifo)
-                .await;
-        }
-
-        render.draw();
-
         if window.should_close {
             break;
         }
+
+        window.update();
+        if window.did_resize {
+            render.reconfigure(window.width, window.height, PresentMode::Fifo);
+        }
+
+        render.draw();
     }
 }
 

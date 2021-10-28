@@ -159,7 +159,7 @@ impl Render {
         }
     }
 
-    pub async fn reconfigure(
+    pub fn reconfigure(
         &mut self,
         width: i32,
         height: i32,
