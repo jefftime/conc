@@ -2,7 +2,7 @@ mod render;
 mod window;
 
 use render::{PresentMode, Render};
-use window::Window;
+use window::{input::Key, Window};
 
 async fn run(mut window: Window) {
     let mut render = Render::new(&window, PresentMode::Fifo).await;
@@ -11,8 +11,12 @@ async fn run(mut window: Window) {
         if window.should_close {
             break;
         }
-
         window.update();
+
+        if window.getkey(Key::Escape) {
+            break;
+        }
+
         if window.did_resize {
             render.reconfigure(window.width, window.height, PresentMode::Fifo);
         }

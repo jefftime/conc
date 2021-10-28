@@ -1,7 +1,12 @@
+use input::Key;
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
-use sdl2::{event::Event, video::Window as SdlWindow, EventPump, Sdl};
+use sdl2::{
+    event::{Event, WindowEvent},
+    video::Window as SdlWindow,
+    EventPump, Sdl,
+};
 
-mod input;
+pub mod input;
 
 pub struct Window {
     pub window: SdlWindow,
@@ -48,16 +53,28 @@ impl Window {
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => self.should_close = true,
+
                 Event::Window { win_event, .. } => match win_event {
-                    sdl2::event::WindowEvent::Resized(width, height) => {
+                    WindowEvent::Resized(width, height) => {
                         self.width = width;
                         self.height = height;
                         self.did_resize = true;
                     }
                     _ => {}
                 },
+
                 _ => {}
             }
+        }
+    }
+
+    pub fn getkey(&self, key: Key) -> bool {
+        if let Some(sdl_key) = key.to_sdl2() {
+            self.event_pump
+                .keyboard_state()
+                .is_scancode_pressed(sdl_key)
+        } else {
+            false
         }
     }
 }
