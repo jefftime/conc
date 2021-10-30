@@ -5,24 +5,26 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.dev]
+lto = "off"
+
+[profile.release]
+lto = true
+
 [dependencies]
-bincode = "1.3"
-serde_json = "1.0"
-raw-window-handle = "0.3"
-pollster = "0.2"
+bincode = "^1.3"
+serde_json = "^1.0"
+raw-window-handle = "^0.3"
+pollster = "^0.2"
 
 [dependencies.wgpu]
-version = "0.11"
+version = "^0.11"
 features = ["spirv"]
 
 [dependencies.sdl2]
-version = "0.35"
+version = "^0.35"
 features = ["raw-window-handle"]
 
 [dependencies.serde]
-version = "1.0"
+version = "^1.0"
 features = ["derive"]
-
-# [dependencies.glfw]
-# git = "https://github.com/bjz/glfw-rs.git"
-# default-features = false

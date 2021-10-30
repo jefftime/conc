@@ -4,6 +4,7 @@ use wgpu::{
     Adapter, Device, Instance, Queue, RenderPipeline, Surface, TextureFormat,
 };
 
+#[allow(dead_code)]
 pub enum PresentMode {
     Immediate,
     Fifo,
@@ -21,8 +22,8 @@ impl PresentMode {
 }
 
 pub struct Render {
-    instance: Instance,
-    adapter: Adapter,
+    _instance: Instance,
+    _adapter: Adapter,
     surface: Surface,
     swapchain_format: TextureFormat,
     device: Device,
@@ -149,8 +150,8 @@ impl Render {
         surface.configure(&device, &config);
 
         Render {
-            instance: instance,
-            adapter: adapter,
+            _instance: instance,
+            _adapter: adapter,
             surface: surface,
             swapchain_format: swapchain_format,
             device: device,
