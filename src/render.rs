@@ -1,7 +1,27 @@
+// mod buffer;
+mod command_buffer;
+// mod framebuffer;
+// mod pipeline;
+mod shader;
+
+use bytemuck::cast_slice;
+// pub use buffer::Buffer;
+pub use command_buffer::CommandBuffer;
+// pub use framebuffer::Framebuffer;
+// pub use pipeline::Pipeline;
+pub use shader::Shader;
+
 use crate::window::Window;
-use std::{borrow::Cow, fs::File, io::Read};
+use std::borrow::Cow;
 use wgpu::{
-    Adapter, Device, Instance, Queue, RenderPipeline, Surface, TextureFormat,
+    Adapter, Backends, ColorTargetState, CommandEncoder,
+    CommandEncoderDescriptor, Device, DeviceDescriptor, Features,
+    FragmentState, Instance, Limits, MultisampleState,
+    PipelineLayoutDescriptor, PowerPreference, PresentMode as WgpuPresentMode,
+    PrimitiveState, Queue, RenderPass, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor,
+    ShaderSource, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
+    TextureViewDescriptor, VertexState,
 };
 
 #[allow(dead_code)]
@@ -12,11 +32,11 @@ pub enum PresentMode {
 }
 
 impl PresentMode {
-    fn to_wgpu(&self) -> wgpu::PresentMode {
+    fn to_wgpu(&self) -> WgpuPresentMode {
         match self {
-            PresentMode::Immediate => wgpu::PresentMode::Immediate,
-            PresentMode::Fifo => wgpu::PresentMode::Fifo,
-            PresentMode::Mailbox => wgpu::PresentMode::Mailbox,
+            PresentMode::Immediate => WgpuPresentMode::Immediate,
+            PresentMode::Fifo => WgpuPresentMode::Fifo,
+            PresentMode::Mailbox => WgpuPresentMode::Mailbox,
         }
     }
 }
@@ -24,123 +44,46 @@ impl PresentMode {
 pub struct Render {
     _instance: Instance,
     _adapter: Adapter,
-    surface: Surface,
+    pub surface: Surface,
     swapchain_format: TextureFormat,
-    device: Device,
-    queue: Queue,
-    pipeline: RenderPipeline,
+    pub device: Device,
+    pub queue: Queue,
+    enc: CommandEncoder,
 }
 
 impl Render {
     pub async fn new(window: &Window, present_mode: PresentMode) -> Render {
-        let instance = wgpu::Instance::new(wgpu::Backends::VULKAN);
+        #[cfg(target_os = "linux")]
+        let instance = Instance::new(Backends::VULKAN);
+
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                compatible_surface: Some(&surface),
-                power_preference: wgpu::PowerPreference::HighPerformance,
+            .request_adapter(&RequestAdapterOptions {
+                power_preference: PowerPreference::HighPerformance,
                 force_fallback_adapter: false,
+                compatible_surface: Some(&surface),
             })
             .await
             .expect("Failed to create WebGPU adapter");
 
         let (device, queue): (Device, Queue) = adapter
             .request_device(
-                &wgpu::DeviceDescriptor {
+                &DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::default(),
-                    limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                    features: Features::default(),
+                    limits: Limits::downlevel_webgl2_defaults(),
                 },
                 None,
             )
             .await
             .expect("Failed to create device");
 
-        let mut vshader_file =
-            File::open("./shaders/vert.spv").expect("Failed to open vert.spv");
-        let mut vshader_bytes = vec![];
-        vshader_file
-            .read_to_end(&mut vshader_bytes)
-            .expect("Failed to read vert.spv");
-        let vlen = vshader_bytes.len() / 4;
-        let vsrc: Vec<u32> = unsafe {
-            Vec::from_raw_parts(
-                vshader_bytes.as_mut_ptr() as *mut u32,
-                vlen,
-                vlen,
-            )
-        };
-        std::mem::forget(vshader_bytes);
-        let vshader =
-            device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::SpirV(Cow::Borrowed(&vsrc)),
-            });
-
-        let mut fshader_file =
-            File::open("./shaders/frag.spv").expect("Failed to open frag.spv");
-        let mut fshader_bytes = vec![];
-        fshader_file
-            .read_to_end(&mut fshader_bytes)
-            .expect("Failed to read vert.spv");
-        let flen = fshader_bytes.len() / 4;
-        let fsrc: Vec<u32> = unsafe {
-            Vec::from_raw_parts(
-                fshader_bytes.as_mut_ptr() as *mut u32,
-                flen,
-                flen,
-            )
-        };
-        std::mem::forget(fshader_bytes);
-        let fshader =
-            device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-                label: None,
-                source: wgpu::ShaderSource::SpirV(Cow::Borrowed(&fsrc)),
-            });
-        // let mut shader_file = File::open("./shaders/default.wgsl")
-        //     .expect("Failed to open default.wgsl");
-        // let mut shader_src = String::new();
-        // shader_file
-        //     .read_to_string(&mut shader_src)
-        //     .expect("Failed to read default.wgsl");
-        // let shader =
-        //     device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-        //         label: None,
-        //         source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(&shader_src)),
-        //     });
-
-        let pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &[],
-                push_constant_ranges: &[],
-            });
-
         let swapchain_format = surface
             .get_preferred_format(&adapter)
             .expect("Failed to get swapchain format");
 
-        let render_pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &vshader,
-                    entry_point: "main",
-                    buffers: &[],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &fshader,
-                    entry_point: "main",
-                    targets: &[swapchain_format.into()],
-                }),
-                primitive: wgpu::PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState::default(),
-            });
-
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        let config = SurfaceConfiguration {
+            usage: TextureUsages::RENDER_ATTACHMENT,
             format: swapchain_format,
             width: window.width as u32,
             height: window.height as u32,
@@ -149,15 +92,83 @@ impl Render {
 
         surface.configure(&device, &config);
 
+        let enc = device
+            .create_command_encoder(&CommandEncoderDescriptor { label: None });
+
         Render {
             _instance: instance,
             _adapter: adapter,
-            surface: surface,
-            swapchain_format: swapchain_format,
-            device: device,
-            queue: queue,
-            pipeline: render_pipeline,
+            surface,
+            swapchain_format,
+            device,
+            queue,
+            enc,
         }
+    }
+
+    pub fn create_shader(
+        &self,
+        vertex_shader: &[u8],
+        fragment_shader: Option<&[u8]>,
+    ) -> Shader {
+        let vertex_module =
+            self.device.create_shader_module(&ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::SpirV(Cow::Borrowed(cast_slice(
+                    vertex_shader,
+                ))),
+            });
+
+        let fragment_module = if let Some(fshader) = fragment_shader {
+            Some(self.device.create_shader_module(&ShaderModuleDescriptor {
+                label: None,
+                source: ShaderSource::SpirV(Cow::Borrowed(cast_slice(fshader))),
+            }))
+        } else {
+            None
+        };
+
+        Shader::new(vertex_module, fragment_module)
+    }
+
+    pub fn create_pipeline(&self, shader: &Shader) -> RenderPipeline {
+        let pipeline_layout =
+            self.device
+                .create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: None,
+                    bind_group_layouts: &[],
+                    push_constant_ranges: &[],
+                });
+
+        let frag_state: &[ColorTargetState] = &[self.swapchain_format.into()];
+        let frag_info = if let Some(ref f) = shader.frag {
+            Some(FragmentState {
+                module: f,
+                entry_point: "main",
+                targets: frag_state,
+            })
+        } else {
+            None
+        };
+
+        self.device
+            .create_render_pipeline(&RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&pipeline_layout),
+                vertex: VertexState {
+                    module: &shader.vert,
+                    entry_point: "main",
+                    buffers: &[],
+                },
+                fragment: frag_info,
+                primitive: PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: MultisampleState::default(),
+            })
+    }
+
+    pub fn start_commands(&self) -> CommandBuffer {
+        CommandBuffer::begin(&self.device)
     }
 
     pub fn reconfigure(
@@ -166,8 +177,8 @@ impl Render {
         height: i32,
         present_mode: PresentMode,
     ) {
-        let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        let config = SurfaceConfiguration {
+            usage: TextureUsages::RENDER_ATTACHMENT,
             format: self.swapchain_format,
             width: width as u32,
             height: height as u32,
@@ -177,37 +188,16 @@ impl Render {
         self.surface.configure(&self.device, &config);
     }
 
-    pub fn draw(&self) {
+    pub fn create_command_buffer(
+        &self,
+        pipeline: &RenderPipeline,
+    ) -> Option<CommandBuffer> {
         let frame = match self.surface.get_current_texture() {
-            Ok(f) => f,
-            Err(_) => return,
+            Ok(frame) => frame,
+            Err(_) => return None,
         };
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+        let view = frame.texture.create_view(&TextureViewDescriptor::default());
 
-        let mut encoder = self.device.create_command_encoder(
-            &wgpu::CommandEncoderDescriptor { label: None },
-        );
-        {
-            let mut rpass =
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                            store: true,
-                        },
-                    }],
-                    depth_stencil_attachment: None,
-                });
-
-            rpass.set_pipeline(&self.pipeline);
-            rpass.draw(0..3, 0..1);
-        }
-        self.queue.submit(Some(encoder.finish()));
-        frame.present();
+        None
     }
 }

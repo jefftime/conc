@@ -24,26 +24,26 @@ unsafe impl HasRawWindowHandle for Window {
 }
 
 impl Window {
-    pub fn new(sdl: Sdl, title: &str, width: u32, height: u32) -> Window {
+    pub fn new(sdl: &Sdl, title: &str, width: i32, height: i32) -> Window {
         let sdl_video = sdl
             .video()
             .expect("Failed to initialize SDL2 video subsystem");
         let event_pump = sdl.event_pump().expect("Failed to obtain event pump");
 
         let window = sdl_video
-            .window(title, width, height)
+            .window(title, width as u32, height as u32)
             .opengl()
             .resizable()
             .build()
             .expect("Failed to create SDL window");
 
         Window {
-            window: window,
-            event_pump: event_pump,
+            window,
+            event_pump,
             should_close: false,
             did_resize: false,
-            width: width as i32,
-            height: height as i32,
+            width,
+            height,
         }
     }
 
