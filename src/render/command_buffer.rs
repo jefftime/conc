@@ -1,24 +1,22 @@
+use wgpu::RenderPipeline;
 use wgpu::{
     CommandEncoder, CommandEncoderDescriptor, Device, LoadOp, Operations,
     Queue, RenderPass, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, TextureView,
+    TextureView,
 };
 
 pub struct CommandBuffer<'a> {
-    encoder: *mut CommandEncoder,
-    pipeline: Option<*const RenderPipeline>,
-    render_pass: Option<RenderPass<'a>>,
+    encoder: Box<CommandEncoder>,
+    render_pass: *mut RenderPass<'a>,
 }
 
 impl<'a> CommandBuffer<'a> {
     fn new(
-        encoder: *mut CommandEncoder,
-        pipeline: Option<*const RenderPipeline>,
-        render_pass: Option<RenderPass>,
+        encoder: Box<CommandEncoder>,
+        render_pass: *mut RenderPass<'a>,
     ) -> CommandBuffer {
         CommandBuffer {
             encoder,
-            pipeline,
             render_pass,
         }
     }
@@ -27,50 +25,50 @@ impl<'a> CommandBuffer<'a> {
         let encoder = device
             .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
-        CommandBuffer::new(Box::into_raw(Box::new(encoder)), None, None)
+        CommandBuffer::new(Box::new(encoder), std::ptr::null_mut())
     }
 
-    pub fn with_pipeline(
+    pub fn configure_draw(
         self,
-        pipeline: *const RenderPipeline,
+        pipeline: &'a RenderPipeline,
         view: &'a TextureView,
     ) -> Self {
-        let pass = {
-            let render_pass = unsafe {
-                (*self.encoder).begin_render_pass(&RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[RenderPassColorAttachment {
-                        view,
-                        resolve_target: None,
-                        ops: Operations {
-                            load: LoadOp::Clear(wgpu::Color::GREEN),
-                            store: true,
-                        },
-                    }],
-                    depth_stencil_attachment: None,
-                })
-            };
-            render_pass
+        let encoder = Box::into_raw(self.encoder);
+        let mut render_pass = unsafe {
+            (*encoder).begin_render_pass(&RenderPassDescriptor {
+                label: None,
+                color_attachments: &[RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(wgpu::Color::GREEN),
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+            })
         };
 
-        CommandBuffer::new(self.encoder, Some(pipeline), Some(pass))
+        render_pass.set_pipeline(pipeline);
+
+        CommandBuffer::new(
+            unsafe { Box::from_raw(encoder) },
+            Box::into_raw(Box::new(render_pass)),
+        )
     }
 
-    pub fn draw(mut self) -> Self {
-        if let (Some(ref mut pass), Some(pipeline)) =
-            (&mut self.render_pass, self.pipeline)
-        {
-            unsafe {
-                pass.set_pipeline(&*pipeline);
-            }
-            pass.draw(0..3, 0..1);
+    pub fn draw(self) -> Self {
+        unsafe {
+            (*self.render_pass).draw(0..3, 0..1);
         }
 
         self
     }
 
     pub fn submit(self, queue: &Queue) {
-        let encoder = unsafe { Box::from_raw(self.encoder) };
-        queue.submit(Some(encoder.finish()));
+        {
+            let _render_pass = unsafe { Box::from_raw(self.render_pass) };
+        }
+        queue.submit(Some(self.encoder.finish()));
     }
 }

@@ -14,14 +14,12 @@ pub use shader::Shader;
 use crate::window::Window;
 use std::borrow::Cow;
 use wgpu::{
-    Adapter, Backends, ColorTargetState, CommandEncoder,
-    CommandEncoderDescriptor, Device, DeviceDescriptor, Features,
+    Adapter, Backends, ColorTargetState, Device, DeviceDescriptor, Features,
     FragmentState, Instance, Limits, MultisampleState,
     PipelineLayoutDescriptor, PowerPreference, PresentMode as WgpuPresentMode,
-    PrimitiveState, Queue, RenderPass, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, RequestAdapterOptions, ShaderModuleDescriptor,
-    ShaderSource, Surface, SurfaceConfiguration, TextureFormat, TextureUsages,
-    TextureViewDescriptor, VertexState,
+    PrimitiveState, Queue, RenderPipeline, RenderPipelineDescriptor,
+    RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource, Surface,
+    SurfaceConfiguration, TextureFormat, TextureUsages, VertexState,
 };
 
 #[allow(dead_code)]
@@ -44,11 +42,10 @@ impl PresentMode {
 pub struct Render {
     _instance: Instance,
     _adapter: Adapter,
-    pub surface: Surface,
+    surface: Surface,
     swapchain_format: TextureFormat,
-    pub device: Device,
-    pub queue: Queue,
-    enc: CommandEncoder,
+    device: Device,
+    queue: Queue,
 }
 
 impl Render {
@@ -92,9 +89,6 @@ impl Render {
 
         surface.configure(&device, &config);
 
-        let enc = device
-            .create_command_encoder(&CommandEncoderDescriptor { label: None });
-
         Render {
             _instance: instance,
             _adapter: adapter,
@@ -102,7 +96,6 @@ impl Render {
             swapchain_format,
             device,
             queue,
-            enc,
         }
     }
 
@@ -186,18 +179,5 @@ impl Render {
         };
 
         self.surface.configure(&self.device, &config);
-    }
-
-    pub fn create_command_buffer(
-        &self,
-        pipeline: &RenderPipeline,
-    ) -> Option<CommandBuffer> {
-        let frame = match self.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(_) => return None,
-        };
-        let view = frame.texture.create_view(&TextureViewDescriptor::default());
-
-        None
     }
 }

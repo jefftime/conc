@@ -5,7 +5,7 @@ mod window;
 use bytemuck::{cast_slice, Pod, Zeroable};
 use render::{PresentMode, Render, Shader};
 use std::{fs::File, io::Read, time::Instant};
-use wgpu::{RenderPipelineDescriptor, TextureViewDescriptor};
+use wgpu::TextureViewDescriptor;
 use window::{input::Key, Window};
 
 #[repr(C)]
@@ -79,11 +79,12 @@ async fn run(mut window: Window) {
             ..Default::default()
         });
 
-        let command_buffer = { render.start_commands() };
-        command_buffer
-            .with_pipeline(&pipeline as *const _, &view)
+        render
+            .start_commands()
+            .configure_draw(&pipeline, &view)
             .draw()
             .submit(&render.queue);
+        frame.present();
     }
 }
 
