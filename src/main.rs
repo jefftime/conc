@@ -56,10 +56,22 @@ async fn run(mut window: Window) {
     let shader = create_shader(&render);
     let pipeline = render.create_pipeline(&shader);
 
+    let mut timer = Instant::now();
+    let mut dt_avg = 0_u128;
+    let mut n_times = 0;
+
     loop {
         let dt = dt_time.elapsed().as_nanos();
-        println!("fps: {}", 1_000_000_000_f64 / (dt as f64));
         dt_time = Instant::now();
+
+        n_times += 1;
+        dt_avg = (dt_avg * (n_times - 1) / n_times) + dt / n_times;
+        if timer.elapsed().as_millis() >= 500 {
+            timer = Instant::now();
+            println!("{:.2} average fps", 1_000_000_000_f64 / (dt_avg as f64));
+            n_times = 0;
+            dt_avg = 0;
+        }
 
         if window.should_close {
             break;
@@ -74,17 +86,13 @@ async fn run(mut window: Window) {
             render.reconfigure(window.width, window.height, PresentMode::Fifo);
         }
 
-        let frame = { render.surface.get_current_texture().unwrap() };
-        let view = &frame.texture.create_view(&TextureViewDescriptor {
-            ..Default::default()
-        });
-
+        let framebuffer = render.get_presentation_framebuffer();
         render
             .start_commands()
-            .configure_draw(&pipeline, &view)
+            .configure_draw(&pipeline, &framebuffer)
             .draw()
             .submit(&render.queue);
-        frame.present();
+        render.present();
     }
 }
 

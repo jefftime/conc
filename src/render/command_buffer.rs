@@ -1,9 +1,9 @@
-use wgpu::RenderPipeline;
 use wgpu::{
     CommandEncoder, CommandEncoderDescriptor, Device, LoadOp, Operations,
     Queue, RenderPass, RenderPassColorAttachment, RenderPassDescriptor,
-    TextureView,
 };
+
+use super::{Framebuffer, Pipeline};
 
 pub struct CommandBuffer<'a> {
     encoder: Box<CommandEncoder>,
@@ -30,15 +30,15 @@ impl<'a> CommandBuffer<'a> {
 
     pub fn configure_draw(
         self,
-        pipeline: &'a RenderPipeline,
-        view: &'a TextureView,
+        pipeline: &'a Pipeline,
+        framebuffer: &'a Framebuffer,
     ) -> Self {
         let encoder = Box::into_raw(self.encoder);
         let mut render_pass = unsafe {
             (*encoder).begin_render_pass(&RenderPassDescriptor {
                 label: None,
                 color_attachments: &[RenderPassColorAttachment {
-                    view,
+                    view: framebuffer.get_target(),
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(wgpu::Color::GREEN),
@@ -49,7 +49,7 @@ impl<'a> CommandBuffer<'a> {
             })
         };
 
-        render_pass.set_pipeline(pipeline);
+        render_pass.set_pipeline(pipeline.pipeline());
 
         CommandBuffer::new(
             unsafe { Box::from_raw(encoder) },

@@ -1,25 +1,26 @@
 // mod buffer;
 mod command_buffer;
-// mod framebuffer;
-// mod pipeline;
+mod framebuffer;
+mod pipeline;
 mod shader;
 
 use bytemuck::cast_slice;
 // pub use buffer::Buffer;
 pub use command_buffer::CommandBuffer;
-// pub use framebuffer::Framebuffer;
-// pub use pipeline::Pipeline;
+pub use framebuffer::Framebuffer;
+pub use pipeline::Pipeline;
 pub use shader::Shader;
 
 use crate::window::Window;
-use std::borrow::Cow;
+use std::{borrow::Cow, mem::replace};
 use wgpu::{
     Adapter, Backends, ColorTargetState, Device, DeviceDescriptor, Features,
     FragmentState, Instance, Limits, MultisampleState,
     PipelineLayoutDescriptor, PowerPreference, PresentMode as WgpuPresentMode,
-    PrimitiveState, Queue, RenderPipeline, RenderPipelineDescriptor,
-    RequestAdapterOptions, ShaderModuleDescriptor, ShaderSource, Surface,
-    SurfaceConfiguration, TextureFormat, TextureUsages, VertexState,
+    PrimitiveState, Queue, RenderPipelineDescriptor, RequestAdapterOptions,
+    ShaderModuleDescriptor, ShaderSource, Surface, SurfaceConfiguration,
+    SurfaceTexture, TextureFormat, TextureUsages, TextureViewDescriptor,
+    VertexState,
 };
 
 #[allow(dead_code)]
@@ -42,10 +43,11 @@ impl PresentMode {
 pub struct Render {
     _instance: Instance,
     _adapter: Adapter,
-    surface: Surface,
+    pub surface: Surface,
     swapchain_format: TextureFormat,
     device: Device,
-    queue: Queue,
+    pub queue: Queue,
+    active_frame: Option<SurfaceTexture>,
 }
 
 impl Render {
@@ -96,6 +98,7 @@ impl Render {
             swapchain_format,
             device,
             queue,
+            active_frame: None,
         }
     }
 
@@ -124,7 +127,7 @@ impl Render {
         Shader::new(vertex_module, fragment_module)
     }
 
-    pub fn create_pipeline(&self, shader: &Shader) -> RenderPipeline {
+    pub fn create_pipeline(&self, shader: &Shader) -> Pipeline {
         let pipeline_layout =
             self.device
                 .create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -144,20 +147,23 @@ impl Render {
             None
         };
 
-        self.device
-            .create_render_pipeline(&RenderPipelineDescriptor {
-                label: None,
-                layout: Some(&pipeline_layout),
-                vertex: VertexState {
-                    module: &shader.vert,
-                    entry_point: "main",
-                    buffers: &[],
-                },
-                fragment: frag_info,
-                primitive: PrimitiveState::default(),
-                depth_stencil: None,
-                multisample: MultisampleState::default(),
-            })
+        let pipeline =
+            self.device
+                .create_render_pipeline(&RenderPipelineDescriptor {
+                    label: None,
+                    layout: Some(&pipeline_layout),
+                    vertex: VertexState {
+                        module: &shader.vert,
+                        entry_point: "main",
+                        buffers: &[],
+                    },
+                    fragment: frag_info,
+                    primitive: PrimitiveState::default(),
+                    depth_stencil: None,
+                    multisample: MultisampleState::default(),
+                });
+
+        Pipeline::new(pipeline)
     }
 
     pub fn start_commands(&self) -> CommandBuffer {
@@ -179,5 +185,24 @@ impl Render {
         };
 
         self.surface.configure(&self.device, &config);
+    }
+
+    pub fn get_presentation_framebuffer(&mut self) -> Framebuffer {
+        let frame = self.surface.get_current_texture().unwrap();
+        let view = frame.texture.create_view(&TextureViewDescriptor {
+            ..Default::default()
+        });
+        self.active_frame = Some(frame);
+
+        Framebuffer::new(view)
+    }
+
+    pub fn present(&mut self) {
+        let frame = replace(&mut self.active_frame, None);
+        self.active_frame = None;
+
+        if let Some(frame) = frame {
+            frame.present();
+        }
     }
 }
