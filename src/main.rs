@@ -1,10 +1,14 @@
 mod math;
 mod render;
+mod util;
 mod window;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use render::{Buffer, PresentMode, Render, Shader, ShaderLayout};
-use std::{fs::File, io::Read, time::Instant};
+use render::{
+    Buffer, PresentMode, Render, Shader, ShaderAttribute, ShaderAttributeType,
+    ShaderLayout,
+};
+use std::{fs::File, io::Read, mem::size_of, time::Instant};
 use window::{input::Key, Window};
 
 #[repr(C)]
@@ -53,7 +57,14 @@ async fn run(mut window: Window) {
     let mut dt_time = Instant::now();
 
     let buffer = create_buffer(&render);
-    let shader_layout = render.create_shader_layout();
+    let shader_layout = render.create_shader_layout([
+        ShaderAttribute::new(ShaderAttributeType::Vec3, 0, 0),
+        ShaderAttribute::new(
+            ShaderAttributeType::Vec3,
+            1,
+            ShaderAttributeType::Vec3.size(),
+        ),
+    ]);
     let shader = create_shader(&render);
     let pipeline = render.create_pipeline(&shader_layout, &shader);
     // let bind_group = render
@@ -97,6 +108,7 @@ async fn run(mut window: Window) {
             .set_vertices(&buffer)
             .draw()
             .submit(&render.queue);
+
         render.present();
     }
 }

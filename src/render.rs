@@ -11,7 +11,7 @@ pub use command_buffer::CommandBuffer;
 pub use framebuffer::Framebuffer;
 pub use pipeline::Pipeline;
 pub use shader::Shader;
-pub use shader_layout::ShaderLayout;
+pub use shader_layout::{ShaderAttribute, ShaderAttributeType, ShaderLayout};
 
 use crate::window::Window;
 use std::{
@@ -109,8 +109,11 @@ impl Render {
         }
     }
 
-    pub fn create_shader_layout(&self) -> ShaderLayout {
-        ShaderLayout::new(&self)
+    pub fn create_shader_layout<const T: usize>(
+        &self,
+        attrs: [ShaderAttribute; T],
+    ) -> ShaderLayout<T> {
+        ShaderLayout::new(&self, attrs)
     }
 
     pub fn create_shader(
@@ -138,9 +141,9 @@ impl Render {
         Shader::new(vertex_module, fragment_module)
     }
 
-    pub fn create_pipeline(
+    pub fn create_pipeline<const T: usize>(
         &self,
-        layout: &ShaderLayout,
+        layout: &ShaderLayout<T>,
         shader: &Shader,
     ) -> Pipeline {
         let pipeline_layout =
@@ -162,6 +165,9 @@ impl Render {
             None
         };
 
+        let attrs = layout.wgpu_attributes();
+        println!("{:?}", attrs);
+
         let pipeline =
             self.device
                 .create_render_pipeline(&RenderPipelineDescriptor {
@@ -173,18 +179,19 @@ impl Render {
                         buffers: &[VertexBufferLayout {
                             array_stride: (size_of::<f32>() * 6) as u64,
                             step_mode: wgpu::VertexStepMode::Vertex,
-                            attributes: &[
-                                VertexAttribute {
-                                    format: wgpu::VertexFormat::Float32x3,
-                                    offset: 0,
-                                    shader_location: 0,
-                                },
-                                VertexAttribute {
-                                    format: wgpu::VertexFormat::Float32x3,
-                                    offset: (size_of::<f32>() * 3) as u64,
-                                    shader_location: 1,
-                                },
-                            ],
+                            attributes: &layout.wgpu_attributes()
+                            // attributes: &[
+                            //     VertexAttribute {
+                            //         format: wgpu::VertexFormat::Float32x3,
+                            //         offset: 0,
+                            //         shader_location: 0,
+                            //     },
+                            //     VertexAttribute {
+                            //         format: wgpu::VertexFormat::Float32x3,
+                            //         offset: (size_of::<f32>() * 3) as u64,
+                            //         shader_location: 1,
+                            //     },
+                            // ],
                         }],
                     },
                     fragment: frag_info,
