@@ -1,9 +1,10 @@
 use wgpu::{
-    CommandEncoder, CommandEncoderDescriptor, Device, LoadOp, Operations,
-    Queue, RenderPass, RenderPassColorAttachment, RenderPassDescriptor,
+    BindGroup, CommandEncoder, CommandEncoderDescriptor, Device, LoadOp,
+    Operations, Queue, RenderPass, RenderPassColorAttachment,
+    RenderPassDescriptor,
 };
 
-use super::{Framebuffer, Pipeline};
+use super::{Buffer, Framebuffer, Pipeline};
 
 pub struct CommandBuffer<'a> {
     encoder: Box<CommandEncoder>,
@@ -41,7 +42,7 @@ impl<'a> CommandBuffer<'a> {
                     view: framebuffer.get_target(),
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(wgpu::Color::GREEN),
+                        load: LoadOp::Clear(wgpu::Color::BLACK),
                         store: true,
                     },
                 }],
@@ -57,12 +58,25 @@ impl<'a> CommandBuffer<'a> {
         )
     }
 
-    pub fn draw(self) -> Self {
-        unsafe {
-            (*self.render_pass).draw(0..3, 0..1);
-        }
+    pub fn set_vertices(self, buffer: &'a Buffer) -> Self {
+        let pass = unsafe { &mut *self.render_pass };
+        pass.set_vertex_buffer(0, buffer.buf.slice(..));
 
-        self
+        CommandBuffer::new(self.encoder, self.render_pass)
+    }
+
+    pub fn bind_resources(self, bind_info: &'a BindGroup) -> Self {
+        let pass = unsafe { &mut *self.render_pass };
+        pass.set_bind_group(0, bind_info, &[]);
+
+        CommandBuffer::new(self.encoder, self.render_pass)
+    }
+
+    pub fn draw(self) -> Self {
+        let pass = unsafe { &mut *self.render_pass };
+        pass.draw(0..3, 0..1);
+
+        CommandBuffer::new(self.encoder, self.render_pass)
     }
 
     pub fn submit(self, queue: &Queue) {

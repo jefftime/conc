@@ -1,26 +1,33 @@
-// mod buffer;
+mod buffer;
 mod command_buffer;
 mod framebuffer;
 mod pipeline;
 mod shader;
+mod shader_layout;
 
+pub use buffer::Buffer;
 use bytemuck::cast_slice;
-// pub use buffer::Buffer;
 pub use command_buffer::CommandBuffer;
 pub use framebuffer::Framebuffer;
 pub use pipeline::Pipeline;
 pub use shader::Shader;
+pub use shader_layout::ShaderLayout;
 
 use crate::window::Window;
-use std::{borrow::Cow, mem::replace};
+use std::{
+    borrow::Cow,
+    mem::{replace, size_of},
+};
 use wgpu::{
-    Adapter, Backends, ColorTargetState, Device, DeviceDescriptor, Features,
+    util::{BufferInitDescriptor, DeviceExt},
+    Adapter, Backends, BindGroup, BindGroupDescriptor, BindGroupEntry,
+    BindGroupLayout, ColorTargetState, Device, DeviceDescriptor, Features,
     FragmentState, Instance, Limits, MultisampleState,
     PipelineLayoutDescriptor, PowerPreference, PresentMode as WgpuPresentMode,
     PrimitiveState, Queue, RenderPipelineDescriptor, RequestAdapterOptions,
     ShaderModuleDescriptor, ShaderSource, Surface, SurfaceConfiguration,
     SurfaceTexture, TextureFormat, TextureUsages, TextureViewDescriptor,
-    VertexState,
+    VertexAttribute, VertexBufferLayout, VertexState,
 };
 
 #[allow(dead_code)]
@@ -102,6 +109,10 @@ impl Render {
         }
     }
 
+    pub fn create_shader_layout(&self) -> ShaderLayout {
+        ShaderLayout::new(&self)
+    }
+
     pub fn create_shader(
         &self,
         vertex_shader: &[u8],
@@ -127,7 +138,11 @@ impl Render {
         Shader::new(vertex_module, fragment_module)
     }
 
-    pub fn create_pipeline(&self, shader: &Shader) -> Pipeline {
+    pub fn create_pipeline(
+        &self,
+        layout: &ShaderLayout,
+        shader: &Shader,
+    ) -> Pipeline {
         let pipeline_layout =
             self.device
                 .create_pipeline_layout(&PipelineLayoutDescriptor {
@@ -155,7 +170,22 @@ impl Render {
                     vertex: VertexState {
                         module: &shader.vert,
                         entry_point: "main",
-                        buffers: &[],
+                        buffers: &[VertexBufferLayout {
+                            array_stride: (size_of::<f32>() * 6) as u64,
+                            step_mode: wgpu::VertexStepMode::Vertex,
+                            attributes: &[
+                                VertexAttribute {
+                                    format: wgpu::VertexFormat::Float32x3,
+                                    offset: 0,
+                                    shader_location: 0,
+                                },
+                                VertexAttribute {
+                                    format: wgpu::VertexFormat::Float32x3,
+                                    offset: (size_of::<f32>() * 3) as u64,
+                                    shader_location: 1,
+                                },
+                            ],
+                        }],
                     },
                     fragment: frag_info,
                     primitive: PrimitiveState::default(),
@@ -204,5 +234,30 @@ impl Render {
         if let Some(frame) = frame {
             frame.present();
         }
+    }
+
+    pub fn create_vertex_buffer(&self, data: &[u8]) -> Buffer {
+        let buf = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: data,
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        Buffer::new(buf, data)
+    }
+
+    pub fn create_bind_group(
+        &self,
+        layout: &BindGroupLayout,
+        buffer: &Buffer,
+    ) -> BindGroup {
+        self.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: buffer.binding_resource(),
+            }],
+        })
     }
 }

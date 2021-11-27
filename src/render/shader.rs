@@ -5,7 +5,7 @@ pub struct Shader {
     pub frag: Option<ShaderModule>,
 }
 
-impl Shader {
+impl<'a> Shader {
     pub fn new(vert: ShaderModule, frag: Option<ShaderModule>) -> Shader {
         Shader { vert, frag }
     }

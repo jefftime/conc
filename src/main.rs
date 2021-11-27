@@ -3,9 +3,8 @@ mod render;
 mod window;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use render::{PresentMode, Render, Shader};
+use render::{Buffer, PresentMode, Render, Shader, ShaderLayout};
 use std::{fs::File, io::Read, time::Instant};
-use wgpu::TextureViewDescriptor;
 use window::{input::Key, Window};
 
 #[repr(C)]
@@ -39,22 +38,26 @@ fn create_shader(render: &Render) -> Shader {
     render.create_shader(&vsrc, Some(&fsrc))
 }
 
-// fn create_buffer(render: &Render) -> Buffer {
-//     let data = vec![
-//         Vertex::new([0.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
-//         Vertex::new([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-//         Vertex::new([0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
-//     ];
+fn create_buffer(render: &Render) -> Buffer {
+    let data = vec![
+        Vertex::new([1.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
+        Vertex::new([0.0, 1.0, 0.0], [0.0, 1.0, 1.0]),
+        Vertex::new([-1.0, -1.0, 0.0], [1.0, 0.0, 1.0]),
+    ];
 
-//     render.create_vertex_buffer(cast_slice(&data))
-// }
+    render.create_vertex_buffer(cast_slice(&data))
+}
 
 async fn run(mut window: Window) {
     let mut render = Render::new(&window, PresentMode::Fifo).await;
     let mut dt_time = Instant::now();
 
+    let buffer = create_buffer(&render);
+    let shader_layout = render.create_shader_layout();
     let shader = create_shader(&render);
-    let pipeline = render.create_pipeline(&shader);
+    let pipeline = render.create_pipeline(&shader_layout, &shader);
+    // let bind_group = render
+    //     .create_bind_group(shader_layout.get_bind_group_layout(), &buffer);
 
     let mut timer = Instant::now();
     let mut dt_avg = 0_u128;
@@ -66,7 +69,7 @@ async fn run(mut window: Window) {
 
         n_times += 1;
         dt_avg = (dt_avg * (n_times - 1) / n_times) + dt / n_times;
-        if timer.elapsed().as_millis() >= 500 {
+        if timer.elapsed().as_millis() >= 750 {
             timer = Instant::now();
             println!("{:.2} average fps", 1_000_000_000_f64 / (dt_avg as f64));
             n_times = 0;
@@ -90,6 +93,8 @@ async fn run(mut window: Window) {
         render
             .start_commands()
             .configure_draw(&pipeline, &framebuffer)
+            // .bind_resources(&bind_group)
+            .set_vertices(&buffer)
             .draw()
             .submit(&render.queue);
         render.present();
