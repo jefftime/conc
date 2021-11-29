@@ -1,13 +1,24 @@
-use std::mem::size_of;
+use std::{cell::Cell, mem::size_of, rc::Rc};
 
 use wgpu::{
-    BindGroupLayout, BindGroupLayoutDescriptor, BindingType, VertexAttribute,
-    VertexFormat,
+    BindGroupLayout, BindGroupLayoutDescriptor, VertexAttribute, VertexFormat,
 };
 
 use crate::util::IntoArray;
 
 use super::Render;
+
+// macro_rules! shader_attributes {
+//     (_ $offset:expr => $attr:expr, $attrs:expr,*) => {
+//         let attr: ShaderAttribute = $attr;
+//         let offset = $offset + attr.kind.size();
+//         shader_attributes(_ offset => )
+//     };
+
+//     ($attr:expr, $attrs:expr*) => {
+//         shader_attributes!(_ 0 => $attr, $attrs)
+//     };
+// }
 
 pub enum ShaderAttributeType {
     Float,
@@ -40,20 +51,11 @@ impl ShaderAttributeType {
 pub struct ShaderAttribute {
     kind: ShaderAttributeType,
     location: usize,
-    offset: usize,
 }
 
 impl ShaderAttribute {
-    pub fn new(
-        kind: ShaderAttributeType,
-        location: usize,
-        offset: usize,
-    ) -> ShaderAttribute {
-        ShaderAttribute {
-            kind,
-            location,
-            offset,
-        }
+    pub fn new(kind: ShaderAttributeType, location: usize) -> ShaderAttribute {
+        ShaderAttribute { kind, location }
     }
 }
 
@@ -84,15 +86,26 @@ impl<'a, const T: usize> ShaderLayout<T> {
         &self.bind_group_layout
     }
 
-    pub fn wgpu_attributes(&self) -> [VertexAttribute; T] {
-        self.attrs
-            .iter()
-            .map(|attr| VertexAttribute {
-                format: attr.kind.to_wgpu(),
-                offset: attr.offset as u64,
-                shader_location: attr.location as u32,
-            })
-            .collect::<IntoArray<VertexAttribute, T>>()
-            .array
+    pub fn wgpu_attributes(&self) -> (usize, [VertexAttribute; T]) {
+        let offset = Rc::new(Cell::new(0_usize));
+
+        (
+            self.attrs.iter().fold(0, |acc, x| acc + x.kind.size()),
+            self.attrs
+                .iter()
+                .map(move |attr| {
+                    let result = VertexAttribute {
+                        format: attr.kind.to_wgpu(),
+                        offset: offset.get() as u64,
+                        // offset: attr.offset as u64,
+                        shader_location: attr.location as u32,
+                    };
+                    offset.set(offset.get() + attr.kind.size());
+
+                    result
+                })
+                .collect::<IntoArray<VertexAttribute, T>>()
+                .array,
+        )
     }
 }

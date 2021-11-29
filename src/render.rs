@@ -165,9 +165,7 @@ impl Render {
             None
         };
 
-        let attrs = layout.wgpu_attributes();
-        println!("{:?}", attrs);
-
+        let (stride, attrs) = layout.wgpu_attributes();
         let pipeline =
             self.device
                 .create_render_pipeline(&RenderPipelineDescriptor {
@@ -177,21 +175,9 @@ impl Render {
                         module: &shader.vert,
                         entry_point: "main",
                         buffers: &[VertexBufferLayout {
-                            array_stride: (size_of::<f32>() * 6) as u64,
+                            array_stride: stride as u64,
                             step_mode: wgpu::VertexStepMode::Vertex,
-                            attributes: &layout.wgpu_attributes()
-                            // attributes: &[
-                            //     VertexAttribute {
-                            //         format: wgpu::VertexFormat::Float32x3,
-                            //         offset: 0,
-                            //         shader_location: 0,
-                            //     },
-                            //     VertexAttribute {
-                            //         format: wgpu::VertexFormat::Float32x3,
-                            //         offset: (size_of::<f32>() * 3) as u64,
-                            //         shader_location: 1,
-                            //     },
-                            // ],
+                            attributes: &attrs,
                         }],
                     },
                     fragment: frag_info,

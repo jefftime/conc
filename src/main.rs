@@ -58,12 +58,8 @@ async fn run(mut window: Window) {
 
     let buffer = create_buffer(&render);
     let shader_layout = render.create_shader_layout([
-        ShaderAttribute::new(ShaderAttributeType::Vec3, 0, 0),
-        ShaderAttribute::new(
-            ShaderAttributeType::Vec3,
-            1,
-            ShaderAttributeType::Vec3.size(),
-        ),
+        ShaderAttribute::new(ShaderAttributeType::Vec3, 0),
+        ShaderAttribute::new(ShaderAttributeType::Vec3, 1),
     ]);
     let shader = create_shader(&render);
     let pipeline = render.create_pipeline(&shader_layout, &shader);
@@ -78,13 +74,18 @@ async fn run(mut window: Window) {
         let dt = dt_time.elapsed().as_nanos();
         dt_time = Instant::now();
 
-        n_times += 1;
-        dt_avg = (dt_avg * (n_times - 1) / n_times) + dt / n_times;
-        if timer.elapsed().as_millis() >= 750 {
-            timer = Instant::now();
-            println!("{:.2} average fps", 1_000_000_000_f64 / (dt_avg as f64));
-            n_times = 0;
-            dt_avg = 0;
+        if cfg!(debug_assertions) {
+            n_times += 1;
+            dt_avg = (dt_avg * (n_times - 1) / n_times) + dt / n_times;
+            if timer.elapsed().as_millis() >= 750 {
+                timer = Instant::now();
+                println!(
+                    "{:.2} average fps",
+                    1_000_000_000_f64 / (dt_avg as f64)
+                );
+                n_times = 0;
+                dt_avg = 0;
+            }
         }
 
         if window.should_close {
