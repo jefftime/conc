@@ -1,16 +1,14 @@
-// 7dfps
-
 mod math;
 mod render;
 mod util;
 mod window;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use obj::Obj;
 use render::{
     Buffer, PresentMode, Render, Shader, ShaderAttribute, ShaderAttributeType,
-    ShaderLayout,
 };
-use std::{fs::File, io::Read, mem::size_of, time::Instant};
+use std::{fs::File, io::Read, time::Instant};
 use window::{input::Key, Window};
 
 #[repr(C)]
@@ -54,9 +52,20 @@ fn create_buffer(render: &Render) -> Buffer {
     render.create_vertex_buffer(cast_slice(&data))
 }
 
+fn try_open_obj(filepath: &str) {
+    let obj_file = Obj::load(filepath).expect("Couldn't open file");
+    for obj in obj_file.data.objects {
+        for group in obj.groups {
+            println!("{:?}", group.polys);
+        }
+    }
+}
+
 async fn run(mut window: Window) {
     let mut render = Render::new(&window, PresentMode::Fifo).await;
     let mut dt_time = Instant::now();
+
+    try_open_obj("./assets/untitled.obj");
 
     let buffer = create_buffer(&render);
     let shader_layout = render.create_shader_layout([
