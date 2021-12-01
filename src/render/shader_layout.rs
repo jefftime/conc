@@ -60,7 +60,7 @@ impl ShaderAttribute {
 }
 
 pub struct ShaderLayout<const T: usize> {
-    bind_group_layout: BindGroupLayout,
+    // bind_group_layout: BindGroupLayout,
     attrs: [ShaderAttribute; T],
 }
 
@@ -69,22 +69,22 @@ impl<'a, const T: usize> ShaderLayout<T> {
         render: &Render,
         attrs: [ShaderAttribute; T],
     ) -> ShaderLayout<T> {
-        let bind_group_layout = render.device.create_bind_group_layout(
-            &BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[],
-            },
-        );
+        // let bind_group_layout = render.device.create_bind_group_layout(
+        //     &BindGroupLayoutDescriptor {
+        //         label: None,
+        //         entries: &[],
+        //     },
+        // );
 
         ShaderLayout {
-            bind_group_layout,
+            // bind_group_layout,
             attrs,
         }
     }
 
-    pub fn get_bind_group_layout(&'a self) -> &'a BindGroupLayout {
-        &self.bind_group_layout
-    }
+    // pub fn get_bind_group_layout(&'a self) -> &'a BindGroupLayout {
+    //     &self.bind_group_layout
+    // }
 
     pub fn wgpu_attributes(&self) -> (usize, [VertexAttribute; T]) {
         let offset = Rc::new(Cell::new(0_usize));

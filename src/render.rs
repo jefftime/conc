@@ -14,20 +14,18 @@ pub use shader::Shader;
 pub use shader_layout::{ShaderAttribute, ShaderAttributeType, ShaderLayout};
 
 use crate::window::Window;
-use std::{
-    borrow::Cow,
-    mem::{replace, size_of},
-};
+use std::{borrow::Cow, mem::replace};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Adapter, Backends, BindGroup, BindGroupDescriptor, BindGroupEntry,
-    BindGroupLayout, ColorTargetState, Device, DeviceDescriptor, Features,
-    FragmentState, Instance, Limits, MultisampleState,
+    BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+    BindingType, BufferBindingType, ColorTargetState, Device, DeviceDescriptor,
+    Features, FragmentState, Instance, Limits, MultisampleState,
     PipelineLayoutDescriptor, PowerPreference, PresentMode as WgpuPresentMode,
     PrimitiveState, Queue, RenderPipelineDescriptor, RequestAdapterOptions,
-    ShaderModuleDescriptor, ShaderSource, Surface, SurfaceConfiguration,
-    SurfaceTexture, TextureFormat, TextureUsages, TextureViewDescriptor,
-    VertexAttribute, VertexBufferLayout, VertexState,
+    ShaderModuleDescriptor, ShaderSource, ShaderStages, Surface,
+    SurfaceConfiguration, SurfaceTexture, TextureFormat, TextureUsages,
+    TextureViewDescriptor, VertexBufferLayout, VertexState,
 };
 
 #[allow(dead_code)]
@@ -145,12 +143,13 @@ impl Render {
         &self,
         layout: &ShaderLayout<T>,
         shader: &Shader,
+        bind_group_layout: &BindGroupLayout,
     ) -> Pipeline {
         let pipeline_layout =
             self.device
                 .create_pipeline_layout(&PipelineLayoutDescriptor {
                     label: None,
-                    bind_group_layouts: &[],
+                    bind_group_layouts: &[&bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -237,6 +236,33 @@ impl Render {
         });
 
         Buffer::new(buf, data)
+    }
+
+    pub fn create_uniforms(&self, data: &[u8]) -> Buffer {
+        let buf = self.device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: data,
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        Buffer::new(buf, data)
+    }
+
+    pub fn create_bind_group_layout(&self) -> BindGroupLayout {
+        self.device
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(16),
+                    },
+                    count: None,
+                }],
+            })
     }
 
     pub fn create_bind_group(

@@ -54,11 +54,11 @@ fn create_buffer(render: &Render) -> Buffer {
 
 fn try_open_obj(filepath: &str) {
     let obj_file = Obj::load(filepath).expect("Couldn't open file");
-    for obj in obj_file.data.objects {
-        for group in obj.groups {
-            println!("{:?}", group.polys);
-        }
-    }
+    // for obj in obj_file.data.objects {
+    //     for group in obj.groups {
+    //         println!("{:?}", group.polys);
+    //     }
+    // }
 }
 
 async fn run(mut window: Window) {
@@ -73,9 +73,13 @@ async fn run(mut window: Window) {
         ShaderAttribute::new(ShaderAttributeType::Vec3, 1),
     ]);
     let shader = create_shader(&render);
-    let pipeline = render.create_pipeline(&shader_layout, &shader);
-    // let bind_group = render
-    //     .create_bind_group(shader_layout.get_bind_group_layout(), &buffer);
+    let bind_layout = render.create_bind_group_layout();
+    let pipeline =
+        render.create_pipeline(&shader_layout, &shader, &bind_layout);
+
+    let uniform_data = [1.0_f32, 0.5_f32, 0.5_f32, 1.0_f32];
+    let uniforms = render.create_uniforms(cast_slice(&uniform_data));
+    let bind_group = render.create_bind_group(&bind_layout, &uniforms);
 
     let mut timer = Instant::now();
     let mut dt_avg = 0_u128;
@@ -88,7 +92,7 @@ async fn run(mut window: Window) {
         if cfg!(debug_assertions) {
             n_times += 1;
             dt_avg = (dt_avg * (n_times - 1) / n_times) + dt / n_times;
-            if timer.elapsed().as_millis() >= 750 {
+            if timer.elapsed().as_millis() >= 500 {
                 timer = Instant::now();
                 println!(
                     "{:.2} average fps",
@@ -116,8 +120,8 @@ async fn run(mut window: Window) {
         render
             .start_commands()
             .configure_draw(&pipeline, &framebuffer)
-            // .bind_resources(&bind_group)
             .set_vertices(&buffer)
+            .bind_resources(&bind_group)
             .draw()
             .submit(&render.queue);
 
