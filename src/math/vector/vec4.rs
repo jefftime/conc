@@ -1,3 +1,7 @@
+use std::ops::Mul;
+
+use crate::math::Mat4;
+
 use super::Vec3;
 
 #[derive(Clone, Copy, Debug)]
@@ -44,5 +48,30 @@ impl Vec4 {
             y: self.y,
             z: self.z,
         }
+    }
+}
+
+impl Mul<Mat4> for Vec4 {
+    type Output = Self;
+
+    fn mul(self, rhs: Mat4) -> Self::Output {
+        let x = self.x * rhs.get(0, 0)
+            + self.y * rhs.get(1, 0)
+            + self.z * rhs.get(2, 0)
+            + self.w * rhs.get(3, 0);
+        let y = self.x * rhs.get(0, 1)
+            + self.y * rhs.get(1, 1)
+            + self.z * rhs.get(2, 1)
+            + self.w * rhs.get(3, 1);
+        let z = self.x * rhs.get(0, 2)
+            + self.y * rhs.get(1, 2)
+            + self.z * rhs.get(2, 2)
+            + self.w * rhs.get(3, 2);
+        let w = self.x * rhs.get(0, 3)
+            + self.y * rhs.get(1, 3)
+            + self.z * rhs.get(2, 3)
+            + self.w * rhs.get(3, 3);
+
+        Vec4 { x, y, z, w }
     }
 }

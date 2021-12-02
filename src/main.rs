@@ -4,6 +4,7 @@ mod util;
 mod window;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use math::{Mat4, Vec4};
 use obj::Obj;
 use render::{
     Buffer, PresentMode, Render, Shader, ShaderAttribute, ShaderAttributeType,
@@ -22,6 +23,13 @@ impl Vertex {
     fn new(pos: [f32; 3], color: [f32; 3]) -> Vertex {
         Vertex { pos, color }
     }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct Uniforms {
+    color: Vec4,
+    mvp: Mat4,
 }
 
 fn create_shader(render: &Render) -> Shader {
@@ -77,29 +85,29 @@ async fn run(mut window: Window) {
     let pipeline =
         render.create_pipeline(&shader_layout, &shader, &bind_layout);
 
-    let uniform_data = [1.0_f32, 0.5_f32, 0.5_f32, 1.0_f32];
+    let mut uniform_data = [1.0_f32, 0.3_f32, 0.3_f32, 1.0_f32];
     let uniforms = render.create_uniforms(cast_slice(&uniform_data));
     let bind_group = render.create_bind_group(&bind_layout, &uniforms);
 
     let mut timer = Instant::now();
-    let mut dt_avg = 0_u128;
+    let mut dt_avg = 0.0_f64;
     let mut n_times = 0;
 
     loop {
-        let dt = dt_time.elapsed().as_nanos();
+        // let dt = 1_000_000_000_f64 / dt_time.elapsed().as_nanos() as f64;
+        let dt = dt_time.elapsed().as_nanos() as f64 / 1_000_000_000_f64;
         dt_time = Instant::now();
 
         if cfg!(debug_assertions) {
             n_times += 1;
-            dt_avg = (dt_avg * (n_times - 1) / n_times) + dt / n_times;
+            let n_times_f = n_times as f64;
+            dt_avg =
+                (dt_avg * (n_times_f - 1.0_f64) / n_times_f) + dt / n_times_f;
             if timer.elapsed().as_millis() >= 500 {
                 timer = Instant::now();
-                println!(
-                    "{:.2} average fps",
-                    1_000_000_000_f64 / (dt_avg as f64)
-                );
+                // println!("{:.2} average fps", dt_avg);
                 n_times = 0;
-                dt_avg = 0;
+                dt_avg = 0.0;
             }
         }
 
@@ -117,6 +125,10 @@ async fn run(mut window: Window) {
         }
 
         let framebuffer = render.get_presentation_framebuffer();
+
+        uniform_data =
+            uniform_data.map(|x| ((x + (0.5_f64 * dt) as f32) % 1.0));
+        render.write_buffer(&uniforms, cast_slice(&uniform_data));
         render
             .start_commands()
             .configure_draw(&pipeline, &framebuffer)

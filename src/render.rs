@@ -242,7 +242,7 @@ impl Render {
         let buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: data,
-            usage: wgpu::BufferUsages::UNIFORM,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
         Buffer::new(buf, data)
@@ -278,5 +278,9 @@ impl Render {
                 resource: buffer.binding_resource(),
             }],
         })
+    }
+
+    pub fn write_buffer(&self, buffer: &Buffer, data: &[u8]) {
+        self.queue.write_buffer(buffer.get_buf(), 0, data)
     }
 }
