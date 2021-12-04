@@ -77,4 +77,8 @@ impl Window {
             false
         }
     }
+
+    pub fn close(&mut self) {
+        self.should_close = true;
+    }
 }

@@ -1,7 +1,7 @@
 use wgpu::{BindingResource, Buffer as WgpuBuffer};
 
 pub struct Buffer {
-    pub buf: WgpuBuffer,
+    buf: WgpuBuffer,
     size: usize,
     offset: usize,
 }

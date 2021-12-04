@@ -1,3 +1,5 @@
+use std::{ops::Range, ptr::null};
+
 use wgpu::{
     BindGroup, CommandEncoder, CommandEncoderDescriptor, Device, LoadOp,
     Operations, Queue, RenderPass, RenderPassColorAttachment,
@@ -60,7 +62,17 @@ impl<'a> CommandBuffer<'a> {
 
     pub fn set_vertices(self, buffer: &'a Buffer) -> Self {
         let pass = unsafe { &mut *self.render_pass };
-        pass.set_vertex_buffer(0, buffer.buf.slice(..));
+        pass.set_vertex_buffer(0, buffer.get_buf().slice(..));
+
+        CommandBuffer::new(self.encoder, self.render_pass)
+    }
+
+    pub fn set_indices(self, buffer: &'a Buffer) -> Self {
+        let pass = unsafe { &mut *self.render_pass };
+        pass.set_index_buffer(
+            buffer.get_buf().slice(..),
+            wgpu::IndexFormat::Uint16,
+        );
 
         CommandBuffer::new(self.encoder, self.render_pass)
     }
@@ -72,9 +84,9 @@ impl<'a> CommandBuffer<'a> {
         CommandBuffer::new(self.encoder, self.render_pass)
     }
 
-    pub fn draw(self) -> Self {
+    pub fn draw(self, range: Range<u32>) -> Self {
         let pass = unsafe { &mut *self.render_pass };
-        pass.draw(0..3, 0..1);
+        pass.draw_indexed(range, 0, 0..1);
 
         CommandBuffer::new(self.encoder, self.render_pass)
     }

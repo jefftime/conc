@@ -20,6 +20,7 @@ raw-window-handle = "^0.3"
 pollster = "^0.2"
 bytemuck = { version = "^1.7", features = ["derive"] }
 obj = { version = "^0.10" }
+cgmath = { version = "^0.18" }
 
 [dependencies.wgpu]
 version = "^0.11"

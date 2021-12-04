@@ -1,15 +1,20 @@
-mod math;
+// mod math;
 mod render;
 mod util;
 mod window;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use math::{Mat4, Vec4};
+use cgmath::{perspective, Matrix4, Vector4};
 use obj::Obj;
 use render::{
     Buffer, PresentMode, Render, Shader, ShaderAttribute, ShaderAttributeType,
 };
-use std::{fs::File, io::Read, time::Instant};
+use std::{
+    fs::File,
+    io::Read,
+    time::{Instant, SystemTime},
+};
+use util::srand;
 use window::{input::Key, Window};
 
 #[repr(C)]
@@ -26,10 +31,10 @@ impl Vertex {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Uniforms {
-    color: Vec4,
-    mvp: Mat4,
+    color: Vector4<f32>,
+    mvp: Matrix4<f32>,
 }
 
 fn create_shader(render: &Render) -> Shader {
@@ -50,14 +55,18 @@ fn create_shader(render: &Render) -> Shader {
     render.create_shader(&vsrc, Some(&fsrc))
 }
 
-fn create_buffer(render: &Render) -> Buffer {
-    let data = vec![
-        Vertex::new([1.0, 0.0, 0.0], [1.0, 1.0, 0.0]),
-        Vertex::new([0.0, 1.0, 0.0], [0.0, 1.0, 1.0]),
-        Vertex::new([-1.0, -1.0, 0.0], [1.0, 0.0, 1.0]),
+fn create_vertex_data(render: &Render) -> (Buffer, Buffer) {
+    let verts = vec![
+        Vertex::new([1.0, 0.0, -1.0], [1.0, 1.0, 0.0]),
+        Vertex::new([0.0, 1.0, -1.0], [0.0, 1.0, 1.0]),
+        Vertex::new([-1.0, -1.0, -1.0], [1.0, 0.0, 1.0]),
     ];
+    let indices = [0_u16, 1, 2];
 
-    render.create_vertex_buffer(cast_slice(&data))
+    (
+        render.create_vertex_buffer(cast_slice(&verts)),
+        render.create_index_buffer(cast_slice(&indices)),
+    )
 }
 
 fn try_open_obj(filepath: &str) {
@@ -69,24 +78,33 @@ fn try_open_obj(filepath: &str) {
     // }
 }
 
+fn process_keys(window: &mut Window) {
+    if window.getkey(Key::Escape) {
+        window.close();
+    }
+}
+
 async fn run(mut window: Window) {
     let mut render = Render::new(&window, PresentMode::Fifo).await;
     let mut dt_time = Instant::now();
 
     try_open_obj("./assets/untitled.obj");
 
-    let buffer = create_buffer(&render);
+    let (vertices, indices) = create_vertex_data(&render);
     let shader_layout = render.create_shader_layout([
         ShaderAttribute::new(ShaderAttributeType::Vec3, 0),
         ShaderAttribute::new(ShaderAttributeType::Vec3, 1),
     ]);
     let shader = create_shader(&render);
-    let bind_layout = render.create_bind_group_layout();
+    let bind_layout = render.create_bind_group_layout::<Uniforms>();
     let pipeline =
         render.create_pipeline(&shader_layout, &shader, &bind_layout);
 
-    let mut uniform_data = [1.0_f32, 0.3_f32, 0.3_f32, 1.0_f32];
-    let uniforms = render.create_uniforms(cast_slice(&uniform_data));
+    let uniform_data = Uniforms {
+        color: Vector4::new(1.0_f32, 0.5, 0.5, 1.0),
+        mvp: perspective(cgmath::Deg(45_f32), 640.0 / 480.0, 10.0, 400.0),
+    };
+    let uniforms = render.create_uniforms(&uniform_data);
     let bind_group = render.create_bind_group(&bind_layout, &uniforms);
 
     let mut timer = Instant::now();
@@ -94,7 +112,6 @@ async fn run(mut window: Window) {
     let mut n_times = 0;
 
     loop {
-        // let dt = 1_000_000_000_f64 / dt_time.elapsed().as_nanos() as f64;
         let dt = dt_time.elapsed().as_nanos() as f64 / 1_000_000_000_f64;
         dt_time = Instant::now();
 
@@ -105,7 +122,7 @@ async fn run(mut window: Window) {
                 (dt_avg * (n_times_f - 1.0_f64) / n_times_f) + dt / n_times_f;
             if timer.elapsed().as_millis() >= 500 {
                 timer = Instant::now();
-                // println!("{:.2} average fps", dt_avg);
+                println!("{:.2} average fps", 1.0 / dt_avg);
                 n_times = 0;
                 dt_avg = 0.0;
             }
@@ -116,9 +133,7 @@ async fn run(mut window: Window) {
         }
         window.update();
 
-        if window.getkey(Key::Escape) {
-            break;
-        }
+        process_keys(&mut window);
 
         if window.did_resize {
             render.reconfigure(window.width, window.height, PresentMode::Fifo);
@@ -126,15 +141,13 @@ async fn run(mut window: Window) {
 
         let framebuffer = render.get_presentation_framebuffer();
 
-        uniform_data =
-            uniform_data.map(|x| ((x + (0.5_f64 * dt) as f32) % 1.0));
-        render.write_buffer(&uniforms, cast_slice(&uniform_data));
         render
             .start_commands()
             .configure_draw(&pipeline, &framebuffer)
-            .set_vertices(&buffer)
+            .set_vertices(&vertices)
+            .set_indices(&indices)
             .bind_resources(&bind_group)
-            .draw()
+            .draw(0..3)
             .submit(&render.queue);
 
         render.present();
@@ -142,6 +155,12 @@ async fn run(mut window: Window) {
 }
 
 fn main() {
+    srand(
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32,
+    );
     let sdl = sdl2::init().expect("Failed to initialize SDL");
     let window = Window::new(&sdl, "Conc", 640, 480);
 

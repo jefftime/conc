@@ -14,7 +14,10 @@ pub use shader::Shader;
 pub use shader_layout::{ShaderAttribute, ShaderAttributeType, ShaderLayout};
 
 use crate::window::Window;
-use std::{borrow::Cow, mem::replace};
+use std::{
+    borrow::Cow,
+    mem::{replace, size_of},
+};
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
     Adapter, Backends, BindGroup, BindGroupDescriptor, BindGroupEntry,
@@ -228,27 +231,41 @@ impl Render {
         }
     }
 
-    pub fn create_vertex_buffer(&self, data: &[u8]) -> Buffer {
+    fn create_buffer(&self, data: &[u8], usage: wgpu::BufferUsages) -> Buffer {
         let buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: data,
-            usage: wgpu::BufferUsages::VERTEX,
+            usage,
         });
 
         Buffer::new(buf, data)
     }
 
-    pub fn create_uniforms(&self, data: &[u8]) -> Buffer {
+    pub fn create_vertex_buffer(&self, data: &[u8]) -> Buffer {
+        self.create_buffer(data, wgpu::BufferUsages::VERTEX)
+    }
+
+    pub fn create_index_buffer(&self, data: &[u8]) -> Buffer {
+        self.create_buffer(data, wgpu::BufferUsages::INDEX)
+    }
+
+    pub fn create_uniforms<T>(&self, data: &T) -> Buffer {
+        let data_bytes = unsafe {
+            std::slice::from_raw_parts(
+                data as *const T as *const u8,
+                std::mem::size_of::<T>(),
+            )
+        };
         let buf = self.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
-            contents: data,
+            contents: data_bytes,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        Buffer::new(buf, data)
+        Buffer::new(buf, data_bytes)
     }
 
-    pub fn create_bind_group_layout(&self) -> BindGroupLayout {
+    pub fn create_bind_group_layout<T>(&self) -> BindGroupLayout {
         self.device
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
                 label: None,
@@ -258,7 +275,9 @@ impl Render {
                     ty: BindingType::Buffer {
                         ty: BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(16),
+                        min_binding_size: wgpu::BufferSize::new(
+                            size_of::<T>() as u64
+                        ),
                     },
                     count: None,
                 }],
