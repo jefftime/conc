@@ -19,7 +19,7 @@ serde_json = "^1.0"
 raw-window-handle = "^0.3"
 pollster = "^0.2"
 bytemuck = { version = "^1.7", features = ["derive"] }
-obj = { version = "^0.10" }
+tobj = { version = "^3.2", default-features=false }
 cgmath = { version = "^0.18" }
 
 [dependencies.wgpu]

@@ -151,12 +151,12 @@ dependencies = [
  "bincode",
  "bytemuck",
  "cgmath",
- "obj",
  "pollster",
  "raw-window-handle",
  "sdl2",
  "serde",
  "serde_json",
+ "tobj",
  "wgpu",
 ]
 
@@ -452,12 +452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "obj"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "059c95245738cdc7b40078cdd51a23200252a4c0a0a6dd005136152b3f467a4a"
-
-[[package]]
 name = "objc"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -702,6 +696,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "tobj"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "267a53ebc1139c69d3feedc33a381c382b2e3b0c47f44f48679e90c4a69b8dac"
 
 [[package]]
 name = "unicode-width"

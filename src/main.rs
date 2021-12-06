@@ -4,8 +4,7 @@ mod util;
 mod window;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use cgmath::{perspective, Matrix4, Vector4};
-use obj::Obj;
+use cgmath::{perspective, point3, vec3, Matrix, Matrix4, Vector3, Vector4};
 use render::{
     Buffer, PresentMode, Render, Shader, ShaderAttribute, ShaderAttributeType,
 };
@@ -16,6 +15,8 @@ use std::{
 };
 use util::srand;
 use window::{input::Key, Window};
+
+use crate::util::IntoArray;
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable, Debug)]
@@ -55,27 +56,44 @@ fn create_shader(render: &Render) -> Shader {
     render.create_shader(&vsrc, Some(&fsrc))
 }
 
-fn create_vertex_data(render: &Render) -> (Buffer, Buffer) {
-    let verts = vec![
-        Vertex::new([1.0, 0.0, -1.0], [1.0, 1.0, 0.0]),
-        Vertex::new([0.0, 1.0, -1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([-1.0, -1.0, -1.0], [1.0, 0.0, 1.0]),
-    ];
-    let indices = [0_u16, 1, 2];
+fn create_vertex_data(render: &Render) -> (Buffer, Buffer, usize) {
+    let (models, _) =
+        tobj::load_obj("./assets/untitled.obj", &tobj::LoadOptions::default())
+            .expect("Couldn't open obj file");
+
+    let mesh = &models[0].mesh;
+    let mut verts = Vec::new();
+    for x in 0..mesh.positions.len() / 3 {
+        let ps = mesh
+            .positions
+            .iter()
+            .skip(3 * x)
+            .take(3)
+            .collect::<IntoArray<&f32, 3>>()
+            .array;
+        let ps = ps.map(|x| *x);
+        let colors = if mesh.vertex_color.len() > 0 {
+            mesh.vertex_color
+                .iter()
+                .skip(3 * x)
+                .take(3)
+                .collect::<IntoArray<&f32, 3>>()
+                .array
+                .map(|x| *x)
+        } else {
+            [1.0, 1.0, 1.0]
+        };
+        let vertex = Vertex::new(ps, colors);
+        verts.push(vertex);
+    }
+
+    let indices = mesh.indices.iter().map(|x| *x as u16).collect::<Vec<u16>>();
 
     (
         render.create_vertex_buffer(cast_slice(&verts)),
         render.create_index_buffer(cast_slice(&indices)),
+        indices.len(),
     )
-}
-
-fn try_open_obj(filepath: &str) {
-    let obj_file = Obj::load(filepath).expect("Couldn't open file");
-    // for obj in obj_file.data.objects {
-    //     for group in obj.groups {
-    //         println!("{:?}", group.polys);
-    //     }
-    // }
 }
 
 fn process_keys(window: &mut Window) {
@@ -88,9 +106,8 @@ async fn run(mut window: Window) {
     let mut render = Render::new(&window, PresentMode::Fifo).await;
     let mut dt_time = Instant::now();
 
-    try_open_obj("./assets/untitled.obj");
-
-    let (vertices, indices) = create_vertex_data(&render);
+    let (vertices, indices, n_indices) = create_vertex_data(&render);
+    println!("n_indices: {}", n_indices);
     let shader_layout = render.create_shader_layout([
         ShaderAttribute::new(ShaderAttributeType::Vec3, 0),
         ShaderAttribute::new(ShaderAttributeType::Vec3, 1),
@@ -100,9 +117,18 @@ async fn run(mut window: Window) {
     let pipeline =
         render.create_pipeline(&shader_layout, &shader, &bind_layout);
 
+    let projection =
+        perspective(cgmath::Deg(67.5_f32), 640.0 / 480.0, 1.0, 400.0);
+    let orientation = Matrix4::look_at_rh(
+        point3(0.0_f32, 1.0, 10.0),
+        point3(0.0_f32, 0.0, 0.0),
+        Vector3::unit_y(),
+    );
+    let location = Matrix4::from_translation(vec3::<f32>(0.0, -1.0, -10.0));
+    let mvp = projection * location;
     let uniform_data = Uniforms {
         color: Vector4::new(1.0_f32, 0.5, 0.5, 1.0),
-        mvp: perspective(cgmath::Deg(45_f32), 640.0 / 480.0, 10.0, 400.0),
+        mvp,
     };
     let uniforms = render.create_uniforms(&uniform_data);
     let bind_group = render.create_bind_group(&bind_layout, &uniforms);
@@ -147,7 +173,7 @@ async fn run(mut window: Window) {
             .set_vertices(&vertices)
             .set_indices(&indices)
             .bind_resources(&bind_group)
-            .draw(0..3)
+            .draw(0..n_indices as u32)
             .submit(&render.queue);
 
         render.present();
